@@ -71,3 +71,39 @@ VM="Lab5-Alpine"
 "$VBM" snapshot "$VM" restore "snap_base"
 "$VBM" startvm "$VM" --type headless
 # [VM] apk info -e curl ; which curl     (sin salida: curl ya no esta instalado)
+
+# ---------------------------------------------------------------------------
+# Paso 5: reasignacion de recursos (VM apagada): 1 CPU/1024 MB -> 2 CPUs/2048 MB
+# ---------------------------------------------------------------------------
+"$VBM" controlvm "$VM" poweroff
+"$VBM" showvminfo "$VM" | grep -i -E "memory size|number of cpus"
+"$VBM" modifyvm "$VM" --cpus 2 --memory 2048
+"$VBM" showvminfo "$VM" | grep -i -E "memory size|number of cpus"
+"$VBM" startvm "$VM" --type headless
+# [VM] nproc ; free -m                                  (2 CPUs, ~1972 MB totales)
+
+# ---------------------------------------------------------------------------
+# Paso 6: disco de tamano FIJO (4 GB) frente al disco dinamico original
+# ---------------------------------------------------------------------------
+"$VBM" controlvm "$VM" acpipowerbutton
+"$VBM" createmedium disk --filename "$BASE\\$VM\\$VM-fixed.vdi" --size 4096 \
+    --format VDI --variant Fixed
+"$VBM" storageattach "$VM" --storagectl "SATA" --port 1 --device 0 \
+    --type hdd --medium "$BASE\\$VM\\$VM-fixed.vdi"
+"$VBM" startvm "$VM" --type headless
+# [VM] apk add e2fsprogs
+# [VM] printf 'n\np\n1\n\n\nw\n' | fdisk /dev/sdb         (equivale al menu interactivo de fdisk)
+# [VM] mkfs.ext4 /dev/sdb1 ; mkdir /mnt/fijo ; mount /dev/sdb1 /mnt/fijo
+# [VM] time dd if=/dev/zero of=/mnt/fijo/test.img bs=1M count=200 ; sync     (benchmark del enunciado)
+# [VM] time dd if=/dev/zero of=/root/test.img bs=1M count=200 ; sync
+# Pruebas adicionales, porque /dev/zero no obliga a reservar bloques en un disco dinamico:
+# [VM] dd if=/dev/urandom of=/dev/shm/rnd bs=1M count=200
+# [VM] time dd if=/dev/shm/rnd of=/mnt/fijo/r1.img bs=1M conv=fsync   (y lo mismo sobre /root, alternando el orden)
+
+# ---------------------------------------------------------------------------
+# Paso 9: exportacion en formato OVA (VM apagada). El .ova NO se sube al repositorio.
+# ---------------------------------------------------------------------------
+"$VBM" controlvm "$VM" acpipowerbutton
+"$VBM" export "$VM" --output "$BASE\\Lab5-Alpine-export.ova" --manifest --options manifest
+ls -lh "/c/Users/Cesar/VMs-lab5/Lab5-Alpine-export.ova"
+# Para importarla en otra instalacion:  VBoxManage import Lab5-Alpine-export.ova
